@@ -1,0 +1,1341 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>iDRAC Batch Manager</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=IBM+Plex+Sans+KR:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ══════════════════════════════════════════════════
+   TOKENS
+══════════════════════════════════════════════════ */
+:root {
+  --bg:        #080c10;
+  --bg2:       #0d1117;
+  --bg3:       #161b22;
+  --bg4:       #1c2128;
+  --border:    #21262d;
+  --border2:   #30363d;
+  --text:      #e6edf3;
+  --text2:     #8b949e;
+  --text3:     #484f58;
+  --blue:      #58a6ff;
+  --blue2:     #1f6feb;
+  --blue3:     #0d419d;
+  --green:     #3fb950;
+  --green2:    #196c2e;
+  --red:       #f85149;
+  --red2:      #6e1a1a;
+  --yellow:    #e3b341;
+  --yellow2:   #9e6a03;
+  --cyan:      #39c5cf;
+  --sidebar-w: 220px;
+  --header-h:  52px;
+  --radius:    6px;
+  --mono:      'JetBrains Mono', monospace;
+  --sans:      'IBM Plex Sans KR', sans-serif;
+}
+
+/* ══════════════════════════════════════════════════
+   RESET & BASE
+══════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+}
+button { cursor: pointer; font-family: var(--sans); font-size: 13px; }
+input  { font-family: var(--mono); font-size: 13px; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg2); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+/* ══════════════════════════════════════════════════
+   LAYOUT
+══════════════════════════════════════════════════ */
+#app { display: flex; flex-direction: column; height: 100vh; }
+
+/* Header */
+#header {
+  height: var(--header-h);
+  background: var(--bg3);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center;
+  padding: 0 20px; gap: 16px;
+  flex-shrink: 0;
+  position: relative;
+}
+#header-logo {
+  font-family: var(--mono);
+  font-size: 11px; font-weight: 700;
+  color: var(--blue);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+}
+#header-sep { width: 1px; height: 20px; background: var(--border2); }
+#header-info {
+  display: flex; gap: 16px; align-items: center;
+  font-family: var(--mono); font-size: 11px; color: var(--text2);
+}
+.hinfo-item { display: flex; align-items: center; gap: 6px; }
+.hinfo-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--text3);
+}
+.hinfo-dot.ok { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.hinfo-dot.warn { background: var(--yellow); }
+.hinfo-val { color: var(--text); font-weight: 500; }
+
+/* Body */
+#body { display: flex; flex: 1; overflow: hidden; }
+
+/* Sidebar */
+#sidebar {
+  width: var(--sidebar-w);
+  background: var(--bg2);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  flex-shrink: 0;
+  overflow-y: auto;
+}
+.nav-section-label {
+  font-family: var(--mono); font-size: 10px; font-weight: 700;
+  color: var(--text3); letter-spacing: 2px; text-transform: uppercase;
+  padding: 16px 16px 6px;
+}
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px;
+  color: var(--text2);
+  cursor: pointer;
+  border-left: 2px solid transparent;
+  transition: all .15s;
+  font-size: 13px;
+}
+.nav-item:hover { background: var(--bg3); color: var(--text); }
+.nav-item.active {
+  background: var(--bg4);
+  color: var(--blue);
+  border-left-color: var(--blue2);
+}
+.nav-item .nav-icon { font-size: 15px; width: 20px; text-align: center; }
+.nav-badge {
+  margin-left: auto;
+  background: var(--blue3); color: var(--blue);
+  font-family: var(--mono); font-size: 10px;
+  padding: 1px 6px; border-radius: 10px;
+}
+
+/* Content */
+#content { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+.panel { display: none; flex: 1; overflow-y: auto; padding: 24px; }
+.panel.active { display: block; }
+.panel.active > * + * { margin-top: 16px; }
+
+/* ══════════════════════════════════════════════════
+   COMPONENTS
+══════════════════════════════════════════════════ */
+
+/* Card */
+.card {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+}
+.card-title {
+  font-family: var(--mono); font-size: 11px; font-weight: 700;
+  color: var(--text2); letter-spacing: 1.5px; text-transform: uppercase;
+  margin-bottom: 14px;
+  display: flex; align-items: center; gap: 8px;
+}
+.card-title::before {
+  content: '';
+  display: block; width: 3px; height: 14px;
+  background: var(--blue2); border-radius: 2px;
+}
+
+/* Row layout */
+.row { display: flex; gap: 12px; flex-wrap: wrap; }
+.row .card { flex: 1; min-width: 260px; }
+.col { display: flex; flex-direction: column; gap: 10px; }
+
+/* Form group */
+.form-group { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+.form-group:last-child { margin-bottom: 0; }
+.form-label {
+  font-family: var(--mono); font-size: 11px; color: var(--text2);
+}
+.form-input {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  color: var(--text);
+  padding: 7px 10px;
+  width: 100%;
+  transition: border-color .15s;
+}
+.form-input:focus { outline: none; border-color: var(--blue2); }
+.form-hint { font-size: 11px; color: var(--text3); margin-top: 2px; }
+.form-ok   { font-size: 11px; color: var(--green); }
+.form-err  { font-size: 11px; color: var(--red); }
+
+/* Buttons */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 14px; border-radius: var(--radius);
+  border: 1px solid var(--border2);
+  background: var(--bg4); color: var(--text);
+  font-weight: 500; white-space: nowrap;
+  transition: all .15s;
+}
+.btn:hover { border-color: var(--blue); color: var(--blue); }
+.btn:active { transform: scale(.97); }
+.btn:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+.btn-primary  { background: var(--blue2);  border-color: var(--blue);  color: #fff; }
+.btn-primary:hover  { background: #388bfd; border-color: #58a6ff; color:#fff; }
+.btn-success  { background: var(--green2); border-color: var(--green); color: #fff; }
+.btn-success:hover  { background: #238636; color:#fff; }
+.btn-warning  { background: var(--yellow2); border-color: var(--yellow); color: #fff; }
+.btn-warning:hover  { background: #bb8009; color:#fff; }
+.btn-danger   { background: var(--red2); border-color: var(--red); color: #fff; }
+.btn-danger:hover   { background: #8e2222; color:#fff; }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+.btn-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+/* Progress bar */
+.progress-wrap {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 4px; overflow: hidden; height: 6px;
+}
+.progress-bar {
+  height: 100%; background: var(--blue2);
+  transition: width .3s ease;
+  width: 0%;
+}
+.progress-bar.green { background: var(--green); }
+.progress-bar.anim {
+  background: linear-gradient(90deg, var(--blue2) 0%, var(--cyan) 50%, var(--blue2) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+@keyframes shimmer { 0%{background-position:200%} 100%{background-position:-200%} }
+
+/* Log box */
+.log-box {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  font-family: var(--mono); font-size: 12px;
+  overflow-y: auto; height: 160px;
+  color: var(--text2);
+  line-height: 1.7;
+}
+.log-box .log-ok   { color: var(--green); }
+.log-box .log-err  { color: var(--red); }
+.log-box .log-info { color: var(--cyan); }
+.log-box .log-warn { color: var(--yellow); }
+.log-box .log-dim  { color: var(--text3); }
+
+/* Table */
+.tbl-wrap {
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+table {
+  width: 100%; border-collapse: collapse;
+  font-family: var(--mono); font-size: 12px;
+}
+thead th {
+  background: var(--bg4);
+  color: var(--text2); font-weight: 600;
+  padding: 9px 14px; text-align: left;
+  border-bottom: 1px solid var(--border2);
+  white-space: nowrap;
+  position: sticky; top: 0; z-index: 1;
+}
+tbody tr {
+  border-bottom: 1px solid var(--border);
+  transition: background .1s;
+  cursor: pointer;
+}
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover { background: var(--bg4); }
+tbody tr.selected { background: #1a2a40; }
+td { padding: 8px 14px; color: var(--text); }
+td.mono { font-family: var(--mono); }
+.tag-badge {
+  display: inline-block;
+  background: var(--blue3); color: var(--blue);
+  padding: 1px 8px; border-radius: 3px;
+  font-size: 11px; font-weight: 600;
+}
+.status-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; padding: 2px 8px;
+  border-radius: 3px; font-weight: 500;
+}
+.status-pending { background: #1c2128; color: var(--text3); }
+.status-saved   { background: #1a2a3a; color: var(--cyan); }
+.status-done    { background: #122219; color: var(--green); }
+.status-fail    { background: #2a1212; color: var(--red); }
+
+/* Edit drawer */
+#edit-drawer {
+  background: var(--bg4);
+  border: 1px solid var(--blue2);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  display: none;
+  animation: slideIn .15s ease;
+}
+#edit-drawer.open { display: block; }
+@keyframes slideIn { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:none} }
+.edit-info {
+  display: flex; gap: 20px; flex-wrap: wrap;
+  font-family: var(--mono); font-size: 12px;
+  color: var(--text2); margin-bottom: 12px;
+}
+.edit-info span { color: var(--text); font-weight: 500; }
+
+/* Collapsible section */
+.collapsible-header {
+  display: flex; align-items: center; gap: 8px;
+  cursor: pointer; padding: 10px 14px;
+  background: var(--bg4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-family: var(--mono); font-size: 12px;
+  color: var(--text2);
+  transition: all .15s;
+  user-select: none;
+}
+.collapsible-header:hover { border-color: var(--border2); color: var(--text); }
+.collapsible-arrow { margin-left: auto; transition: transform .2s; font-size: 10px; }
+.collapsible-header.open .collapsible-arrow { transform: rotate(180deg); }
+.collapsible-body {
+  display: none;
+  animation: fadeIn .2s ease;
+}
+.collapsible-body.open { display: block; }
+@keyframes fadeIn { from{opacity:0} to{opacity:1} }
+
+/* Toast */
+#toast-container {
+  position: fixed; bottom: 20px; right: 20px;
+  display: flex; flex-direction: column; gap: 8px;
+  z-index: 9999;
+}
+.toast {
+  min-width: 280px; max-width: 400px;
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-left: 3px solid var(--blue);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  font-size: 12px; color: var(--text);
+  box-shadow: 0 4px 20px rgba(0,0,0,.5);
+  animation: toastIn .2s ease;
+}
+.toast.ok   { border-left-color: var(--green); }
+.toast.err  { border-left-color: var(--red); }
+.toast.warn { border-left-color: var(--yellow); }
+@keyframes toastIn { from{opacity:0;transform:translateX(20px)} to{opacity:1;transform:none} }
+
+/* Modal */
+#modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.7);
+  align-items: center; justify-content: center;
+  z-index: 1000;
+}
+#modal-overlay.open { display: flex; }
+.modal-box {
+  background: var(--bg3);
+  border: 1px solid var(--blue2);
+  border-radius: 8px;
+  padding: 24px 28px;
+  min-width: 360px; max-width: 480px;
+  box-shadow: 0 0 40px rgba(31,111,235,.2);
+}
+.modal-title {
+  font-family: var(--mono); font-size: 13px;
+  color: var(--blue); margin-bottom: 12px;
+  font-weight: 700;
+}
+.modal-msg {
+  font-family: var(--mono); font-size: 12px;
+  color: var(--text2); line-height: 1.8;
+  margin-bottom: 18px; white-space: pre-wrap;
+}
+.modal-btns { display: flex; gap: 8px; justify-content: flex-end; }
+
+/* Stats row */
+.stat-row {
+  display: flex; gap: 10px; flex-wrap: wrap;
+}
+.stat-card {
+  background: var(--bg4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 16px;
+  min-width: 100px;
+}
+.stat-val {
+  font-family: var(--mono); font-size: 22px;
+  font-weight: 700; color: var(--text);
+  line-height: 1;
+}
+.stat-lbl {
+  font-size: 11px; color: var(--text3);
+  margin-top: 3px; font-family: var(--mono);
+}
+
+/* ══════════════════════════════════════════════════
+   PANEL-SPECIFIC
+══════════════════════════════════════════════════ */
+#panel-scan .scan-result-wrap {
+  min-height: 200px;
+}
+#panel-static .mapping-wrap {
+  min-height: 120px;
+}
+#panel-static .mapping-wrap .tbl-wrap {
+  overflow-x: auto;
+  overflow-y: visible;
+  max-height: none !important;
+  height: auto !important;
+}
+#panel-static .mapping-wrap table {
+  width: 100%;
+}
+
+/* Responsive tweak */
+@media (max-width: 860px) {
+  :root { --sidebar-w: 56px; }
+  .nav-item .nav-label { display: none; }
+  .nav-item { justify-content: center; }
+  .nav-badge { display: none; }
+  .nav-section-label { display: none; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- ── Header ── -->
+  <header id="header">
+    <div id="header-logo">⬡ iDRAC MGR</div>
+    <div id="header-sep"></div>
+    <div id="header-info">
+      <div class="hinfo-item">
+        <div class="hinfo-dot" id="hd-user-dot"></div>
+        <span>계정:</span>
+        <span class="hinfo-val" id="hd-user">root/calvin</span>
+      </div>
+      <div class="hinfo-item">
+        <div class="hinfo-dot" id="hd-subnet-dot"></div>
+        <span>대역:</span>
+        <span class="hinfo-val" id="hd-subnet">미설정</span>
+      </div>
+      <div class="hinfo-item">
+        <div class="hinfo-dot ok"></div>
+        <span>발견:</span>
+        <span class="hinfo-val" id="hd-found">0 대</span>
+      </div>
+    </div>
+  </header>
+
+  <div id="body">
+    <!-- ── Sidebar ── -->
+    <nav id="sidebar">
+      <div class="nav-section-label">메뉴</div>
+      <div class="nav-item active" data-panel="settings">
+        <span class="nav-icon">⚙</span>
+        <span class="nav-label">환경 설정</span>
+      </div>
+      <div class="nav-item" data-panel="scan">
+        <span class="nav-icon">📡</span>
+        <span class="nav-label">태그 수집</span>
+        <span class="nav-badge" id="badge-scan">0</span>
+      </div>
+      <div class="nav-item" data-panel="static">
+        <span class="nav-icon">🔧</span>
+        <span class="nav-label">Static IP</span>
+        <span class="nav-badge" id="badge-static">0</span>
+      </div>
+      <div class="nav-item" data-panel="manage">
+        <span class="nav-icon">🛠</span>
+        <span class="nav-label">iDRAC 관리</span>
+      </div>
+    </nav>
+
+    <!-- ── Content ── -->
+    <main id="content">
+
+      <!-- ══════════════ 1. 환경설정 ══════════════ -->
+      <section id="panel-settings" class="panel active">
+        <div class="row">
+          <div class="card">
+            <div class="card-title">🔐 로그인 계정</div>
+            <div class="form-group">
+              <label class="form-label">계정명</label>
+              <input class="form-input" id="inp-user" value="root" placeholder="root">
+            </div>
+            <div class="form-group">
+              <label class="form-label">비밀번호</label>
+              <input class="form-input" id="inp-pass" value="calvin" placeholder="password">
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">🌐 스캔 대역</div>
+            <div class="form-group">
+              <label class="form-label">CIDR 형식</label>
+              <input class="form-input" id="inp-subnet" placeholder="192.168.0.0/24">
+              <div class="form-hint">예) 192.168.0.0/24, 10.0.0.0/16</div>
+              <div id="subnet-status" class="form-hint"></div>
+            </div>
+          </div>
+        </div>
+        <div class="btn-bar">
+          <button class="btn btn-primary" onclick="saveSettings()">💾 저장</button>
+        </div>
+      </section>
+
+      <!-- ══════════════ 2. 태그 수집 ══════════════ -->
+      <section id="panel-scan" class="panel">
+        <!-- 툴바 -->
+        <div class="btn-bar">
+          <button class="btn btn-success" id="btn-scan" onclick="startScan()">▶ 스캔 시작</button>
+          <button class="btn" id="btn-export-scan" onclick="exportScanCsv()" disabled>💾 CSV 저장</button>
+        </div>
+
+        <!-- 진행 표시 -->
+        <div class="card" id="scan-progress-card" style="display:none">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <span style="font-family:var(--mono);font-size:12px;color:var(--text2)" id="scan-prog-label">스캔 중...</span>
+            <span style="font-family:var(--mono);font-size:12px;color:var(--blue)" id="scan-prog-pct">0%</span>
+          </div>
+          <div class="progress-wrap" style="margin-bottom:8px">
+            <div class="progress-bar anim" id="scan-prog-bar"></div>
+          </div>
+          <div class="stat-row">
+            <div class="stat-card"><div class="stat-val" id="stat-total">0</div><div class="stat-lbl">전체</div></div>
+            <div class="stat-card"><div class="stat-val" id="stat-done">0</div><div class="stat-lbl">검사완료</div></div>
+            <div class="stat-card"><div class="stat-val" style="color:var(--green)" id="stat-found">0</div><div class="stat-lbl">발견</div></div>
+          </div>
+        </div>
+
+        <!-- 로그 -->
+        <div class="log-box" id="scan-log" style="display:none"></div>
+
+        <!-- 결과 테이블 -->
+        <div class="scan-result-wrap">
+          <div class="tbl-wrap" style="flex:1">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:50px">No.</th>
+                  <th>IP (DHCP)</th>
+                  <th>Service Tag</th>
+                </tr>
+              </thead>
+              <tbody id="scan-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══════════════ 3. Static IP 변경 ══════════════ -->
+      <section id="panel-static" class="panel">
+
+        <!-- Collapsible 폼 -->
+        <div>
+          <div class="collapsible-header open" id="static-col-header" onclick="toggleCollapsible()">
+            <span>⚙ 네트워크 설정 / CSV Import</span>
+            <span class="collapsible-arrow">▼</span>
+          </div>
+          <div class="collapsible-body open" id="static-col-body" style="padding-top:10px">
+            <div class="row">
+              <div class="card">
+                <div class="card-title">공통 네트워크 설정</div>
+                <div class="form-group">
+                  <label class="form-label">서브넷 마스크</label>
+                  <input class="form-input" id="inp-mask" value="255.255.255.0" placeholder="255.255.255.0">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">게이트웨이</label>
+                  <input class="form-input" id="inp-gw" placeholder="192.168.0.1">
+                </div>
+              </div>
+              <div class="card">
+                <div class="card-title">CSV Import</div>
+                <div style="font-family:var(--mono);font-size:11px;color:var(--text2);margin-bottom:10px;line-height:1.7">
+                  아래 형식에 맞게 CSV 파일을 작성한 후 업로드하세요.
+                </div>
+                <table style="width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px;margin-bottom:12px;border:1px solid var(--border);border-radius:4px;overflow:hidden">
+                  <thead>
+                    <tr style="background:var(--bg4)">
+                      <th style="padding:6px 12px;color:var(--text3);font-weight:600;text-align:center;border-bottom:1px solid var(--border2);width:28px"></th>
+                      <th style="padding:6px 16px;color:var(--blue);font-weight:600;text-align:left;border-bottom:1px solid var(--border2)">A</th>
+                      <th style="padding:6px 16px;color:var(--blue);font-weight:600;text-align:left;border-bottom:1px solid var(--border2)">B</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr style="background:var(--bg3)">
+                      <td style="padding:5px 12px;color:var(--text3);text-align:center;border-bottom:1px solid var(--border)">1</td>
+                      <td style="padding:5px 16px;color:var(--yellow);font-weight:600;border-bottom:1px solid var(--border)">StaticIP</td>
+                      <td style="padding:5px 16px;color:var(--yellow);font-weight:600;border-bottom:1px solid var(--border)">ServiceTag</td>
+                    </tr>
+                    <tr style="background:var(--bg2)">
+                      <td style="padding:5px 12px;color:var(--text3);text-align:center;border-bottom:1px solid var(--border)">2</td>
+                      <td style="padding:5px 16px;color:var(--text);border-bottom:1px solid var(--border)">10.101.107.132</td>
+                      <td style="padding:5px 16px;color:var(--green);border-bottom:1px solid var(--border)">8NFKTB4</td>
+                    </tr>
+                    <tr style="background:var(--bg3)">
+                      <td style="padding:5px 12px;color:var(--text3);text-align:center;border-bottom:1px solid var(--border)">3</td>
+                      <td style="padding:5px 16px;color:var(--text);border-bottom:1px solid var(--border)">10.101.107.133</td>
+                      <td style="padding:5px 16px;color:var(--green);border-bottom:1px solid var(--border)">J267ZH3</td>
+                    </tr>
+                    <tr style="background:var(--bg2)">
+                      <td style="padding:5px 12px;color:var(--text3);text-align:center">4</td>
+                      <td style="padding:5px 16px;color:var(--text)">10.101.107.134</td>
+                      <td style="padding:5px 16px;color:var(--green)">21ZSL54</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div style="font-family:var(--mono);font-size:11px;color:var(--text3);line-height:1.8;margin-bottom:12px">
+                  <div>✔ &nbsp;열 순서 무관 — <span style="color:var(--cyan)">ServiceTag,StaticIP</span> 도 허용</div>
+                  <div>✔ &nbsp;Service Tag: 대문자+숫자 7자리 (예: <span style="color:var(--green)">8NFKTB4</span>)</div>
+                  <div>✔ &nbsp;헤더 행 있어도 없어도 자동 감지</div>
+                </div>
+                <div class="btn-bar">
+                  <label class="btn btn-primary" style="cursor:pointer">
+                    📤 CSV 파일 업로드
+                    <input type="file" accept=".csv" style="display:none" onchange="importCsv(this)">
+                  </label>
+                  <button class="btn btn-success" id="btn-apply-all" onclick="applyAll()">🚀 전체 IP 변경</button>
+                </div>
+                <div id="csv-status" class="form-hint" style="margin-top:8px"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+
+
+        <!-- 진행바 -->
+        <div id="apply-prog-wrap" style="display:none">
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+            <span style="font-family:var(--mono);font-size:11px;color:var(--text2)" id="apply-prog-label">적용 중...</span>
+            <span style="font-family:var(--mono);font-size:11px;color:var(--blue)" id="apply-prog-pct">0%</span>
+          </div>
+          <div class="progress-wrap"><div class="progress-bar anim" id="apply-prog-bar"></div></div>
+        </div>
+
+        <!-- 매핑 힌트 + 버튼들 -->
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:0 2px;flex-wrap:wrap;gap:6px">
+          <span style="font-family:var(--mono);font-size:11px;color:var(--text3)">
+            📋 매핑 목록 — 행 클릭 시 편집
+          </span>
+          <div style="display:flex;gap:6px;align-items:center">
+            <button class="btn btn-sm" onclick="loadScanToMapping()">🔄 스캔결과 불러오기</button>
+            <button class="btn btn-sm" onclick="exportMappingCsv()">💾 매핑 저장</button>
+            <button class="btn btn-danger btn-sm" onclick="clearAllMapping()">🗑 전체 삭제</button>
+            <span id="apply-status" style="font-family:var(--mono);font-size:11px;color:var(--green);margin-left:2px"></span>
+          </div>
+        </div>
+
+        <!-- 매핑 테이블 -->
+        <div class="mapping-wrap">
+          <div class="tbl-wrap" style="overflow:visible;max-height:none">
+            <table>
+              <thead>
+                <tr>
+                  <th>Service Tag</th>
+                  <th>DHCP IP</th>
+                  <th>Static IP</th>
+                  <th>상태</th>
+                </tr>
+              </thead>
+              <tbody id="mapping-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 편집 드로어 -->
+        <div id="edit-drawer">
+          <div class="edit-info">
+            <div>Tag: <span id="ed-tag" style="color:var(--yellow)"></span></div>
+            <div>DHCP: <span id="ed-dhcp" style="color:var(--cyan)"></span></div>
+            <div>현재 Static: <span id="ed-sip" style="color:var(--green)"></span></div>
+          </div>
+          <div class="btn-bar">
+            <input class="form-input" id="inp-edit-ip" placeholder="새 Static IP" style="width:180px;margin-bottom:0">
+            <button class="btn btn-primary" onclick="editSave()">✔ 저장</button>
+            <button class="btn btn-success" onclick="editRun()">🚀 즉시변경</button>
+            <button class="btn btn-danger" onclick="editDel()">🗑 삭제</button>
+            <button class="btn btn-sm" onclick="closeDrawer()" style="margin-left:auto">✕</button>
+          </div>
+        </div>
+
+        <!-- 적용 로그 -->
+        <div class="log-box" id="apply-log"></div>
+      </section>
+
+      <!-- ══════════════ 4. iDRAC 관리 ══════════════ -->
+      <section id="panel-manage" class="panel">
+        <!-- 대상 설정 -->
+        <div class="card">
+          <div class="card-title">🎯 실행 대상</div>
+          <div class="form-group">
+            <label class="form-label">단일 IP (비우면 스캔 결과 전체 적용)</label>
+            <input class="form-input" id="inp-manage-ip" placeholder="192.168.0.x  (선택 입력)">
+          </div>
+          <div style="font-family:var(--mono);font-size:11px;color:var(--text3)" id="manage-target-hint"></div>
+        </div>
+
+        <!-- 액션 카드들 -->
+        <div class="row">
+          <div class="card">
+            <div class="card-title">📡 IPMI over LAN</div>
+            <div class="btn-bar">
+              <button class="btn btn-success" onclick="runManage('ipmi_on')">✔ 활성화</button>
+              <button class="btn btn-danger"  onclick="runManage('ipmi_off')">✘ 비활성화</button>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">⚡ Power Hot Spare</div>
+            <div class="btn-bar">
+              <button class="btn btn-success" onclick="runManage('hotspare_on')">✔ 활성화</button>
+              <button class="btn btn-danger"  onclick="runManage('hotspare_off')">✘ 비활성화</button>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">🔑 root 계정 변경</div>
+            <div class="form-group">
+              <label class="form-label">새 UserName</label>
+              <input class="form-input" id="inp-new-user" placeholder="새 UserName (선택)">
+            </div>
+            <div class="form-group">
+              <label class="form-label">새 Password</label>
+              <input class="form-input" type="password" id="inp-new-pw" placeholder="새 Password (선택)">
+            </div>
+            <button class="btn btn-warning" onclick="runManage('change_account')">🔑 변경 실행</button>
+          </div>
+        </div>
+
+        <!-- 관리 로그 -->
+        <div class="card">
+          <div class="card-title">실행 로그</div>
+          <div id="manage-prog-wrap" style="display:none;margin-bottom:8px">
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+              <span style="font-family:var(--mono);font-size:11px;color:var(--text2)" id="manage-prog-label"></span>
+              <span style="font-family:var(--mono);font-size:11px;color:var(--blue)" id="manage-prog-pct">0%</span>
+            </div>
+            <div class="progress-wrap"><div class="progress-bar anim" id="manage-prog-bar"></div></div>
+          </div>
+          <div class="log-box" id="manage-log" style="height:220px"></div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div id="toast-container"></div>
+
+<!-- Confirm modal -->
+<div id="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-title" id="modal-title">확인</div>
+    <div class="modal-msg" id="modal-msg"></div>
+    <div class="modal-btns">
+      <button class="btn btn-primary" id="modal-yes">✔ 예</button>
+      <button class="btn" id="modal-no">✘ 아니오</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ════════════════════════════════════════
+   STATE
+════════════════════════════════════════ */
+const S = {
+  user: 'root', pass: 'calvin', subnet: '',
+  results: [], mapping: {},
+  selectedTag: null,
+  scanRunning: false, applyRunning: false,
+};
+
+/* ════════════════════════════════════════
+   NAVIGATION
+════════════════════════════════════════ */
+document.querySelectorAll('.nav-item').forEach(el => {
+  el.addEventListener('click', () => {
+    document.querySelectorAll('.nav-item').forEach(e => e.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(e => e.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('panel-' + el.dataset.panel).classList.add('active');
+  });
+});
+
+/* ════════════════════════════════════════
+   TOAST
+════════════════════════════════════════ */
+function toast(msg, type = 'info', duration = 3500) {
+  const el = document.createElement('div');
+  el.className = `toast ${type === 'ok' ? 'ok' : type === 'err' ? 'err' : type === 'warn' ? 'warn' : ''}`;
+  el.textContent = msg;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .3s';
+    setTimeout(() => el.remove(), 300); }, duration);
+}
+
+/* ════════════════════════════════════════
+   CONFIRM MODAL
+════════════════════════════════════════ */
+function confirm(title, msg) {
+  return new Promise(resolve => {
+    document.getElementById('modal-title').textContent = title;
+    document.getElementById('modal-msg').textContent = msg;
+    const overlay = document.getElementById('modal-overlay');
+    overlay.classList.add('open');
+    const yes = document.getElementById('modal-yes');
+    const no  = document.getElementById('modal-no');
+    const close = (v) => { overlay.classList.remove('open'); resolve(v); };
+    yes.onclick = () => close(true);
+    no.onclick  = () => close(false);
+  });
+}
+
+/* ════════════════════════════════════════
+   API helpers
+════════════════════════════════════════ */
+async function api(method, path, body) {
+  const opts = { method, headers: {} };
+  if (body !== undefined) {
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(body);
+  }
+  const r = await fetch(path, opts);
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({ detail: r.statusText }));
+    throw new Error(err.detail || r.statusText);
+  }
+  return r.json();
+}
+
+/* ════════════════════════════════════════
+   HEADER UPDATE
+════════════════════════════════════════ */
+function updateHeader() {
+  document.getElementById('hd-user').textContent = `${S.user}/${S.pass}`;
+  document.getElementById('hd-user-dot').className = 'hinfo-dot ok';
+  const subnetEl = document.getElementById('hd-subnet');
+  const subnetDot = document.getElementById('hd-subnet-dot');
+  if (S.subnet) {
+    subnetEl.textContent = S.subnet;
+    subnetDot.className = 'hinfo-dot ok';
+  } else {
+    subnetEl.textContent = '미설정';
+    subnetDot.className = 'hinfo-dot warn';
+  }
+  document.getElementById('hd-found').textContent = S.results.length + ' 대';
+  document.getElementById('badge-scan').textContent = S.results.length;
+  document.getElementById('badge-static').textContent = Object.keys(S.mapping).length;
+}
+
+/* ════════════════════════════════════════
+   1. 환경설정
+════════════════════════════════════════ */
+async function saveSettings() {
+  const user   = document.getElementById('inp-user').value.trim();
+  const pass   = document.getElementById('inp-pass').value;
+  const subnet = document.getElementById('inp-subnet').value.trim();
+  if (!subnet) { toast('스캔 대역(CIDR)을 입력해주세요', 'warn'); return; }
+  try {
+    const r = await api('POST', '/api/settings', { rac_user: user, rac_pass: pass, subnet });
+    S.user = r.rac_user; S.pass = pass; S.subnet = r.subnet;
+    document.getElementById('subnet-status').textContent = `✔ ${subnet} 저장됨`;
+    document.getElementById('subnet-status').className = 'form-ok';
+    updateHeader();
+    toast(`저장 완료 | 계정: ${S.user} | 대역: ${S.subnet}`, 'ok');
+  } catch(e) {
+    document.getElementById('subnet-status').textContent = '✘ ' + e.message;
+    document.getElementById('subnet-status').className = 'form-err';
+    toast(e.message, 'err');
+  }
+}
+
+/* ════════════════════════════════════════
+   LOG HELPERS
+════════════════════════════════════════ */
+function logLine(id, html) {
+  const el = document.getElementById(id);
+  el.innerHTML += html + '\n';
+  el.scrollTop = el.scrollHeight;
+}
+function logClear(id) {
+  document.getElementById(id).innerHTML = '';
+}
+
+/* ════════════════════════════════════════
+   2. 스캔
+════════════════════════════════════════ */
+function startScan() {
+  if (S.scanRunning) { toast('스캔이 이미 진행 중', 'warn'); return; }
+  if (!S.subnet) { toast('환경설정에서 대역을 먼저 저장하세요', 'warn'); return; }
+
+  confirm('스캔 시작', `[${S.subnet}] 스캔을 시작하시겠습니까?`).then(ok => {
+    if (!ok) return;
+    _doScan();
+  });
+}
+
+function _doScan() {
+  S.scanRunning = true;
+  S.results = [];
+  document.getElementById('btn-scan').disabled = true;
+  document.getElementById('btn-scan').textContent = '⏳ 스캔 중...';
+  document.getElementById('scan-progress-card').style.display = 'block';
+  document.getElementById('scan-log').style.display = 'block';
+  document.getElementById('btn-export-scan').disabled = true;
+  logClear('scan-log');
+  document.getElementById('scan-tbody').innerHTML = '';
+
+  const es = new EventSource('/api/scan/stream');
+
+  es.addEventListener('start', e => {
+    const d = JSON.parse(e.data);
+    document.getElementById('stat-total').textContent = d.total;
+    logLine('scan-log', `<span class="log-info">═══ 스캔 시작: ${d.subnet} — 총 ${d.total}개 IP ═══</span>`);
+  });
+
+  es.addEventListener('found', e => {
+    const d = JSON.parse(e.data);
+    document.getElementById('stat-done').textContent = d.done;
+    document.getElementById('stat-found').textContent = d.found;
+    const pct = Math.round(d.done / parseInt(document.getElementById('stat-total').textContent) * 100);
+    document.getElementById('scan-prog-bar').style.width = pct + '%';
+    document.getElementById('scan-prog-pct').textContent = pct + '%';
+    document.getElementById('scan-prog-label').textContent = `${d.done} / ${document.getElementById('stat-total').textContent}`;
+
+    S.results.push({ dhcp_ip: d.dhcp_ip, tag: d.tag });
+    const tbody = document.getElementById('scan-tbody');
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${d.no}</td><td class="mono">${d.dhcp_ip}</td><td><span class="tag-badge">${d.tag}</span></td>`;
+    tbody.appendChild(tr);
+    logLine('scan-log', `<span class="log-ok">✔</span>  ${d.dhcp_ip.padEnd(18)}  →  <b>${d.tag}</b>`);
+    updateHeader();
+  });
+
+  es.addEventListener('progress', e => {
+    const d = JSON.parse(e.data);
+    document.getElementById('stat-done').textContent = d.done;
+    const total = parseInt(document.getElementById('stat-total').textContent);
+    const pct = Math.round(d.done / total * 100);
+    document.getElementById('scan-prog-bar').style.width = pct + '%';
+    document.getElementById('scan-prog-pct').textContent = pct + '%';
+    document.getElementById('scan-prog-label').textContent = `${d.done} / ${total}`;
+  });
+
+  es.addEventListener('done', e => {
+    const d = JSON.parse(e.data);
+    es.close(); S.scanRunning = false;
+    document.getElementById('btn-scan').disabled = false;
+    document.getElementById('btn-scan').textContent = '▶ 스캔 시작';
+    document.getElementById('scan-prog-bar').classList.remove('anim');
+    document.getElementById('scan-prog-bar').classList.add('green');
+    document.getElementById('scan-prog-bar').style.width = '100%';
+    document.getElementById('btn-export-scan').disabled = false;
+    logLine('scan-log', `<span class="log-info">═══ 완료: ${d.found}대 발견 / ${d.total}대 검사 ═══</span>`);
+    toast(`✅ 스캔 완료 — ${d.found}대 발견, Static IP 패널에 자동 반영`, 'ok', 5000);
+    updateHeader();
+    // 스캔 완료 시 매핑 자동 로드
+    if (d.found > 0) {
+      api('POST', '/api/mapping/load-scan')
+        .then(r => { refreshMapping(); })
+        .catch(() => {});
+    }
+  });
+
+  es.addEventListener('error', e => {
+    es.close(); S.scanRunning = false;
+    document.getElementById('btn-scan').disabled = false;
+    document.getElementById('btn-scan').textContent = '▶ 스캔 시작';
+    try { const d = JSON.parse(e.data); toast(d.msg, 'err'); } catch(_) { toast('스캔 오류', 'err'); }
+  });
+
+  es.onerror = () => {
+    if (S.scanRunning) {
+      es.close(); S.scanRunning = false;
+      document.getElementById('btn-scan').disabled = false;
+      document.getElementById('btn-scan').textContent = '▶ 스캔 시작';
+    }
+  };
+}
+
+function exportScanCsv() {
+  window.location.href = '/api/results/export-csv';
+}
+
+/* ════════════════════════════════════════
+   3. Static IP
+════════════════════════════════════════ */
+function toggleCollapsible() {
+  const header = document.getElementById('static-col-header');
+  const body   = document.getElementById('static-col-body');
+  header.classList.toggle('open');
+  body.classList.toggle('open');
+}
+
+async function loadScanToMapping() {
+  try {
+    const r = await api('POST', '/api/mapping/load-scan');
+    await refreshMapping();
+    toast(`✔ ${r.count}건 불러오기 완료`, 'ok');
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+async function importCsv(input) {
+  if (!input.files.length) return;
+  const form = new FormData();
+  form.append('file', input.files[0]);
+  try {
+    const r = await fetch('/api/mapping/import-csv', { method: 'POST', body: form });
+    if (!r.ok) { const e = await r.json(); throw new Error(e.detail); }
+    const d = await r.json();
+    await refreshMapping();
+    document.getElementById('csv-status').textContent = `✔ ${input.files[0].name} (${d.imported}건) Import 완료`;
+    document.getElementById('csv-status').className = 'form-ok';
+    toast(`✔ CSV ${d.imported}건 Import`, 'ok');
+  } catch(e) {
+    document.getElementById('csv-status').textContent = '✘ ' + e.message;
+    document.getElementById('csv-status').className = 'form-err';
+    toast(e.message, 'err');
+  }
+  input.value = '';
+}
+
+function statusBadge(status) {
+  const map = {
+    pending: ['status-pending', '— 미입력'],
+    saved:   ['status-saved',   '📝 저장됨'],
+    done:    ['status-done',    '✅ 완료'],
+    fail:    ['status-fail',    '❌ 실패'],
+  };
+  const [cls, txt] = map[status] || ['status-pending', status];
+  return `<span class="status-badge ${cls}">${txt}</span>`;
+}
+
+async function refreshMapping() {
+  const data = await api('GET', '/api/mapping');
+  S.mapping = {};
+  data.forEach(r => { S.mapping[r.tag] = r; });
+  renderMappingTable();
+  updateHeader();
+}
+
+function renderMappingTable() {
+  const tbody = document.getElementById('mapping-tbody');
+  tbody.innerHTML = '';
+  Object.values(S.mapping).forEach(r => {
+    const tr = document.createElement('tr');
+    if (S.selectedTag === r.tag) tr.classList.add('selected');
+    tr.innerHTML = `
+      <td><span class="tag-badge">${r.tag}</span></td>
+      <td class="mono">${r.dhcp_ip}</td>
+      <td class="mono">${r.static_ip || '<span style="color:var(--text3)">미입력</span>'}</td>
+      <td>${statusBadge(r.status)}</td>
+
+    `;
+    tr.addEventListener('click', () => selectRow(r.tag));
+    tbody.appendChild(tr);
+  });
+}
+
+function selectRow(tag, e) {
+  if (e) e.stopPropagation();
+  S.selectedTag = tag;
+  const r = S.mapping[tag];
+  if (!r) return;
+  document.getElementById('ed-tag').textContent  = tag;
+  document.getElementById('ed-dhcp').textContent = r.dhcp_ip;
+  document.getElementById('ed-sip').textContent  = r.static_ip || '(미입력)';
+  document.getElementById('inp-edit-ip').value   = r.static_ip || '';
+  document.getElementById('edit-drawer').classList.add('open');
+  document.getElementById('inp-edit-ip').focus();
+  renderMappingTable();
+}
+
+function closeDrawer() {
+  S.selectedTag = null;
+  document.getElementById('edit-drawer').classList.remove('open');
+  renderMappingTable();
+}
+
+async function editSave() {
+  if (!S.selectedTag) { toast('행을 먼저 선택하세요', 'warn'); return; }
+  const ip = document.getElementById('inp-edit-ip').value.trim();
+  try {
+    await api('POST', '/api/mapping/entry', { tag: S.selectedTag, static_ip: ip });
+    S.mapping[S.selectedTag].static_ip = ip;
+    S.mapping[S.selectedTag].status = 'saved';
+    document.getElementById('ed-sip').textContent = ip;
+    renderMappingTable();
+    toast(`✔ ${S.selectedTag} → ${ip} 저장됨`, 'ok');
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+async function editRun() {
+  if (!S.selectedTag) { toast('행을 먼저 선택하세요', 'warn'); return; }
+  const ip   = document.getElementById('inp-edit-ip').value.trim();
+  const mask = document.getElementById('inp-mask').value.trim();
+  const gw   = document.getElementById('inp-gw').value.trim();
+  if (!mask || !gw) { toast('서브넷/게이트웨이를 입력하세요', 'warn'); return; }
+
+  const tag = S.selectedTag;
+  const ok  = await confirm('즉시 변경', `${tag}\n${S.mapping[tag].dhcp_ip} → ${ip}\n\n실행하시겠습니까?`);
+  if (!ok) return;
+
+  await api('POST', '/api/mapping/entry', { tag, static_ip: ip }).catch(() => {});
+
+  logLine('apply-log', `<span class="log-warn">⏳</span>  ${tag}  ${S.mapping[tag].dhcp_ip} → ${ip} ...`);
+  const es = new EventSource(`/api/apply/single/stream?tag=${encodeURIComponent(tag)}&static_ip=${encodeURIComponent(ip)}&subnet_mask=${encodeURIComponent(mask)}&gateway=${encodeURIComponent(gw)}`);
+  es.addEventListener('done', e => {
+    const d = JSON.parse(e.data);
+    es.close();
+    if (d.ok) {
+      logLine('apply-log', `<span class="log-ok">✔</span>  ${d.tag} → ${d.static_ip}  성공`);
+      toast(`✅ ${d.tag} → ${d.static_ip}`, 'ok');
+    } else {
+      logLine('apply-log', `<span class="log-err">✘</span>  ${d.tag} → ${d.static_ip}  실패`);
+      toast(`❌ ${d.tag} 변경 실패`, 'err');
+    }
+    refreshMapping();
+  });
+}
+
+async function editDel() {
+  if (!S.selectedTag) { toast('행을 먼저 선택하세요', 'warn'); return; }
+  const tag = S.selectedTag;
+  const ok = await confirm('삭제', `${tag} 를 목록에서 삭제하시겠습니까?`);
+  if (!ok) return;
+  try {
+    await api('DELETE', `/api/mapping/entry/${encodeURIComponent(tag)}`);
+    delete S.mapping[tag];
+    S.selectedTag = null;
+    document.getElementById('edit-drawer').classList.remove('open');
+    renderMappingTable();
+    updateHeader();
+    toast(`🗑 ${tag} 삭제됨`, 'ok');
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+async function applyAll() {
+  if (S.applyRunning) { toast('이미 실행 중', 'warn'); return; }
+  const mask = document.getElementById('inp-mask').value.trim();
+  const gw   = document.getElementById('inp-gw').value.trim();
+  if (!mask || !gw) { toast('서브넷/게이트웨이를 입력하세요', 'warn'); return; }
+
+  const ready = Object.values(S.mapping).filter(v => v.static_ip);
+  if (!ready.length) { toast('Static IP가 입력된 항목이 없습니다', 'warn'); return; }
+
+  const missing = Object.values(S.mapping).filter(v => !v.static_ip).length;
+  let msg = `총 ${ready.length}대 IP 변경을 시작하시겠습니까?`;
+  if (missing) msg += `\n(미입력 ${missing}건 건너뜀)`;
+
+  const ok = await confirm('전체 IP 변경', msg);
+  if (!ok) return;
+
+  S.applyRunning = true;
+  document.getElementById('btn-apply-all').disabled = true;
+  document.getElementById('apply-prog-wrap').style.display = 'block';
+  logClear('apply-log');
+  logLine('apply-log', `<span class="log-info">═══ IP 변경 시작: ${ready.length}대 ═══</span>`);
+
+  const es = new EventSource(`/api/apply/stream?subnet_mask=${encodeURIComponent(mask)}&gateway=${encodeURIComponent(gw)}`);
+
+  es.addEventListener('start', e => {
+    const d = JSON.parse(e.data);
+    document.getElementById('apply-prog-label').textContent = `0 / ${d.total}`;
+  });
+
+  es.addEventListener('progress', e => {
+    const d = JSON.parse(e.data);
+    logLine('apply-log', `<span class="log-warn">⏳</span>  ${d.tag}  ${d.dhcp_ip} → ${d.static_ip}`);
+  });
+
+  es.addEventListener('result', e => {
+    const d = JSON.parse(e.data);
+    const total = ready.length;
+    const pct = Math.round(d.done / total * 100);
+    document.getElementById('apply-prog-bar').style.width = pct + '%';
+    document.getElementById('apply-prog-pct').textContent = pct + '%';
+    document.getElementById('apply-prog-label').textContent = `${d.done} / ${total}  ✔${d.success}  ✘${d.fail}`;
+    document.getElementById('apply-status').textContent = `진행 ${d.done}/${total}  ✔${d.success}  ✘${d.fail}`;
+    if (d.ok) {
+      logLine('apply-log', `<span class="log-ok">✔</span>  ${d.tag} → ${d.static_ip}  성공`);
+    } else {
+      logLine('apply-log', `<span class="log-err">✘</span>  ${d.tag} → ${d.static_ip}  실패`);
+    }
+  });
+
+  es.addEventListener('done', e => {
+    const d = JSON.parse(e.data);
+    es.close(); S.applyRunning = false;
+    document.getElementById('btn-apply-all').disabled = false;
+    document.getElementById('apply-prog-bar').classList.remove('anim');
+    document.getElementById('apply-prog-bar').classList.add('green');
+    logLine('apply-log', `<span class="log-info">═══ 완료: ✔${d.success}  ✘${d.fail}  전체${d.total} ═══</span>`);
+    toast(`✅ 완료 — 성공 ${d.success} / 실패 ${d.fail}`, 'ok', 6000);
+    refreshMapping();
+  });
+
+  es.onerror = () => {
+    if (S.applyRunning) {
+      es.close(); S.applyRunning = false;
+      document.getElementById('btn-apply-all').disabled = false;
+      toast('연결 오류', 'err');
+    }
+  };
+}
+
+function exportMappingCsv() {
+  window.location.href = '/api/mapping/export-csv';
+}
+
+async function clearAllMapping() {
+  if (!Object.keys(S.mapping).length) { toast('삭제할 항목이 없습니다', 'warn'); return; }
+  const ok = await confirm('전체 삭제', `매핑 목록 전체 ${Object.keys(S.mapping).length}건을 삭제하시겠습니까?`);
+  if (!ok) return;
+  // 서버 측 각 태그 삭제
+  await Promise.all(
+    Object.keys(S.mapping).map(tag =>
+      fetch(`/api/mapping/entry/${encodeURIComponent(tag)}`, { method: 'DELETE' }).catch(() => {})
+    )
+  );
+  S.mapping = {};
+  S.selectedTag = null;
+  document.getElementById('edit-drawer').classList.remove('open');
+  renderMappingTable();
+  updateHeader();
+  toast('🗑 매핑 전체 삭제 완료', 'ok');
+}
+
+/* ════════════════════════════════════════
+   4. iDRAC 관리
+════════════════════════════════════════ */
+async function runManage(action) {
+  const singleIp = document.getElementById('inp-manage-ip').value.trim();
+  let targets = singleIp ? [singleIp] : S.results.map(r => r.dhcp_ip);
+  if (!targets.length) { toast('단일 IP를 입력하거나 먼저 스캔을 실행하세요', 'warn'); return; }
+
+  if (action === 'change_account') {
+    const nu = document.getElementById('inp-new-user').value.trim();
+    const np = document.getElementById('inp-new-pw').value;
+    if (!nu && !np) { toast('UserName 또는 Password를 입력하세요', 'warn'); return; }
+    if (nu && nu.length > 16) { toast('UserName 최대 16자', 'warn'); return; }
+    if (np && np.length < 4)  { toast('Password 4자 이상', 'warn'); return; }
+  }
+
+  const actionLabel = {
+    ipmi_on: 'IPMI over LAN 활성화', ipmi_off: 'IPMI over LAN 비활성화',
+    hotspare_on: 'Power Hot Spare 활성화', hotspare_off: 'Power Hot Spare 비활성화',
+    change_account: 'root 계정 변경',
+  }[action] || action;
+
+  const targetStr = targets.length === 1 ? targets[0] : `${targets.length}대`;
+  const ok = await confirm(actionLabel, `${actionLabel}\n\n대상: ${targetStr}\n\n실행하시겠습니까?`);
+  if (!ok) return;
+
+  const nu = document.getElementById('inp-new-user').value.trim();
+  const np = document.getElementById('inp-new-pw').value;
+
+  logClear('manage-log');
+  document.getElementById('manage-prog-wrap').style.display = 'block';
+
+  let cid;
+  try {
+    const r = await api('POST', '/api/manage/stream-start', {
+      targets, action,
+      new_user: nu, new_pw: np,
+    });
+    cid = r.channel;
+  } catch(e) { toast(e.message, 'err'); return; }
+
+  const es = new EventSource(`/api/manage/stream/${cid}`);
+
+  es.addEventListener('start', e => {
+    const d = JSON.parse(e.data);
+    logLine('manage-log', `<span class="log-info">═══ ${actionLabel}: ${d.total}대 ═══</span>`);
+  });
+
+  es.addEventListener('result', e => {
+    const d = JSON.parse(e.data);
+    const total = targets.length;
+    const pct = Math.round(d.done / total * 100);
+    document.getElementById('manage-prog-bar').style.width = pct + '%';
+    document.getElementById('manage-prog-pct').textContent = pct + '%';
+    document.getElementById('manage-prog-label').textContent = `${d.done} / ${total}  ✔${d.success}  ✘${d.fail}`;
+    if (d.ok) {
+      logLine('manage-log', `<span class="log-ok">✔</span>  ${d.ip}  성공`);
+    } else {
+      logLine('manage-log', `<span class="log-err">✘</span>  ${d.ip}  실패: ${d.msg}`);
+    }
+  });
+
+  es.addEventListener('done', e => {
+    const d = JSON.parse(e.data);
+    es.close();
+    document.getElementById('manage-prog-bar').classList.remove('anim');
+    document.getElementById('manage-prog-bar').classList.add('green');
+    logLine('manage-log', `<span class="log-info">═══ 완료: ✔${d.success}  ✘${d.fail}  전체${d.total} ═══</span>`);
+    toast(`✅ ${actionLabel} 완료 (성공 ${d.success} / 실패 ${d.fail})`, 'ok', 6000);
+    if (action === 'change_account') {
+      toast('환경설정 계정 정보도 업데이트하세요', 'warn', 7000);
+    }
+  });
+
+  es.onerror = () => { es.close(); };
+}
+
+/* ════════════════════════════════════════
+   INIT
+════════════════════════════════════════ */
+async function init() {
+  try {
+    const r = await api('GET', '/api/state');
+    S.user = r.rac_user; S.pass = r.rac_pass; S.subnet = r.subnet;
+    document.getElementById('inp-user').value   = S.user;
+    document.getElementById('inp-pass').value   = S.pass;
+    document.getElementById('inp-subnet').value = S.subnet;
+    if (r.result_count > 0) {
+      const results = await api('GET', '/api/results');
+      S.results = results;
+      results.forEach((r, i) => {
+        const tbody = document.getElementById('scan-tbody');
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${i+1}</td><td class="mono">${r.dhcp_ip}</td><td><span class="tag-badge">${r.tag}</span></td>`;
+        tbody.appendChild(tr);
+      });
+    }
+    if (r.mapping_count > 0) await refreshMapping();
+    updateHeader();
+  } catch(e) {
+    // 서버 연결 실패 — 무시
+  }
+}
+
+init();
+</script>
+</body>
+</html>

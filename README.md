@@ -12,8 +12,8 @@
 
 Dell iDRAC Manager는 다수의 Dell 서버를 한 번에 설정해야 하는 환경에서 수작업을 자동화하기 위해 만든 웹 기반 관리 도구입니다.
 
-사전에 DHCP 서버를 이용해 임시 IP를 할당합니다. 
-이 도구는 해당 대역을 스캔해 각 서버의 Service Tag를 수집하고, 미리 작성해둔 CSV 파일(Service Tag ↔ Static IP 매핑)을 불러와 racadm 명령으로 IP를 일괄 변경합니다.
+사전에 DHCP 서버를 이용해 임시 IP를 할당합니다.  
+이 도구는 해당 대역을 스캔해 각 서버의 Service Tag를 수집하고, 미리 작성해둔 CSV 파일(Service Tag ↔ Static IP 매핑)을 불러와 racadm 명령으로 IP를 일괄 변경합니다.  
 이후 IPMI Over LAN 활성화, Power Hot Spare 설정, root 계정 변경까지 한 화면에서 처리할 수 있습니다.
 
 ---
